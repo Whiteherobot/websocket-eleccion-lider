@@ -24,6 +24,8 @@ eligen otro; si un nodo no responde, el anillo lo salta.
   conexión, el mensaje va al que sigue.
 - **Caída del líder**: cada nodo consulta al líder por HTTP cada 2 s; si no
   responde, empieza una elección nueva.
+- **Regreso de un nodo**: un nodo que vuelve y recibe un anuncio de un líder con
+  id menor que el suyo no lo acepta y empieza su propia elección.
 
 ## Uso
 
@@ -35,8 +37,8 @@ curl localhost:8101/estado
 docker compose stop nodo-3          # se cae el líder (41)
 curl localhost:8101/estado          # en unos segundos: "lider": 36
 
-docker compose start nodo-3
-curl -X POST localhost:8103/eleccion   # vuelve a ganar 41
+docker compose start nodo-3          # vuelve y recupera el liderazgo
+curl -X POST localhost:8101/eleccion   # también se puede pedir una elección a mano
 ```
 
 Cada nodo publica su puerto en el host (8101 a 8105) para poder mirar su
@@ -44,12 +46,15 @@ estado; con `PUERTO_BASE=83` quedan en 8301 a 8305. En los logs se ve la
 elección:
 
 ```
-nodo-3-1  | [nodo 41] soy el líder (la elección dio 8 saltos)
+nodo-3-1  | [nodo 41] soy el líder (la elección dio 7 saltos)
 nodo-1-1  | [nodo 23] nuevo líder: 41
-nodo-5-1  | [nodo 36] el líder http://nodo-3:8000 no responde
-nodo-5-1  | [nodo 36] empiezo una elección (cayó el líder)
+nodo-1-1  | [nodo 23] el líder http://nodo-3:8000 no responde
+nodo-1-1  | [nodo 23] empiezo una elección (cayó el líder)
 nodo-2-1  | [nodo 7] http://nodo-3:8000 no responde, se salta
 nodo-5-1  | [nodo 36] soy el líder (la elección dio 5 saltos)
+nodo-5-1  | [nodo 36] todos saben que el líder es 36
+nodo-3-1  | [nodo 41] empiezo una elección (arranque)
+nodo-3-1  | [nodo 41] soy el líder (la elección dio 5 saltos)
 ```
 
 ## Pruebas
@@ -57,7 +62,7 @@ nodo-5-1  | [nodo 36] soy el líder (la elección dio 5 saltos)
 ```bash
 pip install -r requirements.txt pytest
 pytest                # el algoritmo en anillos simulados
-scripts/probar.sh     # con el compose levantado: elige 41, cae 41 -> 36, vuelve -> 41
+scripts/probar.sh     # con el compose levantado: elige 41, cae 41 -> 36, vuelve 41 -> 41
 ```
 
 Las pruebas del algoritmo cubren varios órdenes del anillo, varias elecciones a
