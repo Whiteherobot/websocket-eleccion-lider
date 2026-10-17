@@ -1,24 +1,36 @@
+# Cinco nodos en anillo. Los ids no siguen el orden del anillo a propósito: gana
+# el 41 (nodo-3) y, si se cae, el 36 (nodo-5). Cada nodo publica su puerto en el
+# host (8101 a 8105) solo para poder mirar su estado.
+x-nodo: &nodo
+  build: .
+  restart: "no"
+  healthcheck:
+    test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/estado')"]
+    interval: 3s
+    timeout: 2s
+    retries: 10
+
+x-anillo: &anillo
+  ANILLO: http://nodo-1:8000,http://nodo-2:8000,http://nodo-3:8000,http://nodo-4:8000,http://nodo-5:8000
+
 services:
-  nodo-a:
-    build: .
-    command: sh -c "rm -rf __pycache__ && /usr/local/bin/python -u The_Initiator.py"
-    ports:
-      - "8080:8080"
-    networks:
-      - app-network
-
-  nodo-b:
-    build: .
-    command: sh -c "rm -rf __pycache__ && /usr/local/bin/python -u The_Transformer.py"
-    networks:
-      - app-network
-
-  nodo-c:
-    build: .
-    command: sh -c "rm -rf __pycache__ && /usr/local/bin/python -u The_Auditor.py"
-    networks:
-      - app-network
-
-networks:
-  app-network:
-    driver: bridge
+  nodo-1:
+    <<: *nodo
+    environment: { <<: *anillo, ID: 23, POSICION: 0 }
+    ports: ["${PUERTO_BASE:-81}01:8000"]
+  nodo-2:
+    <<: *nodo
+    environment: { <<: *anillo, ID: 7, POSICION: 1 }
+    ports: ["${PUERTO_BASE:-81}02:8000"]
+  nodo-3:
+    <<: *nodo
+    environment: { <<: *anillo, ID: 41, POSICION: 2 }
+    ports: ["${PUERTO_BASE:-81}03:8000"]
+  nodo-4:
+    <<: *nodo
+    environment: { <<: *anillo, ID: 15, POSICION: 3 }
+    ports: ["${PUERTO_BASE:-81}04:8000"]
+  nodo-5:
+    <<: *nodo
+    environment: { <<: *anillo, ID: 36, POSICION: 4 }
+    ports: ["${PUERTO_BASE:-81}05:8000"]

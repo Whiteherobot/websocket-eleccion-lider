@@ -1,9 +1,10 @@
-FROM python:3.9-slim
-
+# Una imagen para todos los nodos; cada uno recibe su ID y su POSICION por entorno.
+FROM python:3.12-slim
+ENV PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1
 WORKDIR /app
-
-RUN pip install websockets
-
-COPY The_Initiator.py .
-COPY The_Transformer.py .
-COPY The_Auditor.py .
+COPY requirements.txt .
+RUN pip install -r requirements.txt
+COPY anillo ./anillo
+USER nobody
+EXPOSE 8000
+CMD ["python", "-m", "anillo.nodo"]
