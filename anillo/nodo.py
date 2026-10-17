@@ -15,6 +15,7 @@ elección nueva.
 import asyncio
 import logging
 import os
+import time
 
 import aiohttp
 from aiohttp import web
@@ -26,6 +27,7 @@ ANILLO = [u.strip() for u in os.environ.get("ANILLO", "http://localhost:8000").s
 POSICION = int(os.environ.get("POSICION", "0"))
 VIGILANCIA = float(os.environ.get("VIGILANCIA", "2"))
 PUERTO = int(os.environ.get("PUERTO", "8000"))
+RECORDAR_CAIDA = 15  # segundos
 
 logging.basicConfig(level=logging.INFO, format=f"[nodo {ID}] %(message)s")
 log = logging.getLogger("nodo")
@@ -38,21 +40,29 @@ class Servicio:
         self.url_lider = None
         self.siguiente = None
         self.sesion = None
+        self.caidos = {}  # dirección -> momento en que dejó de responder
 
     async def enviar(self, mensaje):
         """Manda el mensaje al primer nodo vivo después de este, en orden de anillo."""
         n = len(ANILLO)
-        for k in range(1, n + 1):
-            destino = ANILLO[(POSICION + k) % n]
+        orden = [ANILLO[(POSICION + k) % n] for k in range(1, n + 1)]
+        # Los que fallaron hace poco se intentan al final, para no esperar su
+        # timeout en cada mensaje mientras siguen caídos.
+        recientes = {d for d, t in self.caidos.items() if time.monotonic() - t < RECORDAR_CAIDA}
+        orden = [d for d in orden if d not in recientes] + [d for d in orden if d in recientes]
+        for destino in orden:
             try:
                 async with self.sesion.ws_connect(f"{destino}/ws", timeout=aiohttp.ClientWSTimeout(ws_close=2)) as ws:
                     await ws.send_json(mensaje)
+                self.caidos.pop(destino, None)
                 if destino != self.siguiente:
                     log.info("siguiente en el anillo: %s", destino)
                     self.siguiente = destino
                 return
             except (aiohttp.ClientError, asyncio.TimeoutError, OSError):
-                log.info("%s no responde, se salta", destino)
+                if destino not in self.caidos:
+                    log.info("%s no responde, se salta", destino)
+                self.caidos[destino] = time.monotonic()
         log.warning("no hay ningún nodo vivo en el anillo")
 
     async def procesar(self, mensaje):
@@ -62,6 +72,8 @@ class Servicio:
         if mensaje["tipo"] == "ELECCION" and salida and salida[0]["tipo"] == "ELEGIDO":
             log.info("soy el líder (la elección dio %d saltos)", mensaje["saltos"] + 1)
             self.url_lider = self.yo
+        elif mensaje["tipo"] == "ELEGIDO" and salida and salida[0]["tipo"] == "ELECCION":
+            log.info("no acepto al líder %d (mi id es mayor); empiezo una elección", mensaje["lider"])
         elif mensaje["tipo"] == "ELEGIDO" and not salida:
             log.info("todos saben que el líder es %d", self.nodo.lider)
         elif mensaje["tipo"] == "ELEGIDO":
