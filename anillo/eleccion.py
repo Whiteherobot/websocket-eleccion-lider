@@ -8,6 +8,9 @@ más alto:
   participa, lo descarta (otra elección con un id más alto ya está en curso);
   si es el propio id, el mensaje dio la vuelta entero y el nodo es el líder.
 - ELEGIDO(l): cada nodo anota al líder y lo reenvía hasta que vuelve a él.
+  Si a un nodo le llega un líder con id menor que el suyo (por ejemplo, porque
+  volvió después de una caída mientras circulaba el anuncio), no lo acepta y
+  empieza una elección propia.
 
 Las funciones devuelven los mensajes que hay que mandar al siguiente nodo, así
 el algoritmo se prueba sin red.
@@ -59,6 +62,10 @@ class Nodo:
             self.lider = self.id
             return [elegido(self.id, saltos)]
         if mensaje["tipo"] == "ELEGIDO":
+            if mensaje["lider"] < self.id:
+                self.participante = True
+                self.lider = None
+                return [eleccion(self.id, saltos)]
             self.participante = False
             self.lider = mensaje["lider"]
             return [] if mensaje["lider"] == self.id else [elegido(mensaje["lider"], saltos)]

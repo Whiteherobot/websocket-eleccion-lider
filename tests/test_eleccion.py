@@ -69,3 +69,15 @@ def test_mensajes_desconocidos():
 def test_cualquier_orden_del_anillo(perm):
     nodos, _ = simular(list(perm), iniciadores=[0])
     assert {n.lider for n in nodos} == {4}
+
+
+def test_un_nodo_mayor_que_vuelve_no_acepta_un_lider_menor():
+    # 41 vuelve después de una caída y le llega el anuncio atrasado de 36.
+    ids = [23, 7, 41, 15, 36]
+    nodos = [Nodo(i, lider=36) for i in ids]
+    nodos[2] = Nodo(41)
+    pendientes = [(2, {"tipo": "ELEGIDO", "lider": 36, "saltos": 3})]
+    while pendientes:
+        destino, mensaje = pendientes.pop(0)
+        pendientes += [((destino + 1) % len(nodos), m) for m in nodos[destino].recibir(mensaje)]
+    assert {n.lider for n in nodos} == {41}
